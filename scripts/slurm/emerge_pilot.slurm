@@ -6,9 +6,13 @@
 # Submit (array size = line count of the manifest):
 #   sbatch --array=1-$(wc -l < scripts/pilot_manifest.txt) scripts/slurm/emerge_pilot.slurm
 #
+# Note: Discovery's QOS caps submitted jobs per user (around 20), so submit
+# wide arrays in waves, or use emerge_pilot_serial.slurm for the pilot grid.
+# gpu:a100:1 targets the A100 nodes; a bare gpu:1 can land on P100/V100/T4.
+#
 #SBATCH --job-name=emerge-pilot
 #SBATCH --partition=normal
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:a100:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
 #SBATCH --time=06:00:00
