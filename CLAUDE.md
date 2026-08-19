@@ -25,8 +25,11 @@ https://github.com/Axion-Deep-Labs/emerge-icl (MIT).
 - Train one cell:
   `.venv/bin/python -m emerge.train --config configs/pilot.yaml --model-size small --pool-size 16 --seed 0`
 - Tests: `.venv/bin/python -m pytest tests/ -q`
-- Pilot on Discovery: generate `scripts/pilot_manifest.txt`, then
-  `sbatch --array=1-N scripts/slurm/emerge_pilot.slurm` (N = manifest lines).
+- Pilot on Discovery: generate `scripts/pilot_manifest.txt`, then submit
+  `scripts/slurm/emerge_pilot_serial.slurm` (one job, loops the manifest,
+  skips completed cells, safe to resubmit). The array script
+  `emerge_pilot.slurm` is for Phase 1; Discovery's QOS caps submitted jobs
+  at about 20 per user, so arrays go in waves. Always `--gres=gpu:a100:1`.
   Env vars: EMERGE_DIR (repo path on cluster), EMERGE_ENV (venv path).
 - Figures: `python analysis/plot_pilot.py --results results/pilot`
 
