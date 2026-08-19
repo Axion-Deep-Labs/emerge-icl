@@ -1,0 +1,37 @@
+# EMERGE Phase 0 pilot config. See RESEARCH_PLAN.md section 6.
+# A cell is (model_size, pool_size, seed); pool sizes and seeds are passed
+# on the command line so one config file covers the whole grid.
+
+dim: 8
+n_points: 16
+sigma: 0.25
+
+batch_size: 256
+train_steps: 50000
+lr: 0.0003
+warmup_steps: 1000
+weight_decay: 0.01
+grad_clip: 1.0
+
+eval_interval: 1000
+eval_batches: 8
+eval_batch_size: 512
+# Primary-endpoint window: context positions 8 to 15 (0-indexed, half-open),
+# the second half of the prompt. Frozen in RESEARCH_PLAN.md section 5.
+align_window: [8, 16]
+
+save_final_checkpoint: false
+
+model_sizes:
+  small:
+    d_model: 64
+    n_layers: 3
+    n_heads: 2
+  medium:
+    d_model: 256
+    n_layers: 6
+    n_heads: 4
+
+# Pilot grid (run via scripts/gen_pilot_manifest.py):
+# pool sizes: 4, 16, 64, 256, 1024, 4096, inf
+# seeds: 0, 1
