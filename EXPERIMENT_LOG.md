@@ -5,6 +5,30 @@ plan. Newest entries at the top.
 
 ---
 
+## 2026-09-08: Phase 0B parameters frozen, implementation added
+
+Phase 0B is implemented and its six parameters are frozen in `configs/phase0b.yaml`
+before any Phase 0B run, per PHASE_0B_PLAN.md section 6: `tau = 4*sigma = 1.0`,
+4096 probes per cell on the `sqrt(d)` shell, context lengths 4, 8 and 15 with 8
+primary, `E_max = 0.25` provisional, tolerances 0.05 stability and 0.10 for mixture
+and noise, and S bands at 0.25 and 0.75.
+
+`E_max` is deliberately provisional. Pass criterion 1 tests it: if the null predictor
+lands inside the ridge band with a residual under the bound, the bound is too loose
+and must be tightened before the measure is adopted.
+
+**Divergence probes are available in closed form.** Both references are linear in the
+query, so the divergence at `x_q` is exactly `(w_dmmse - w_ridge) . x_q` and, at fixed
+query norm, is maximized by placing `x_q` along that difference. No search is needed.
+
+**Code.** `emerge/phase0b.py` (probes, S and E, the battery), `scripts/run_phase0b.py`,
+`scripts/check_phase0b_criteria.py` (scores the five criteria), `tests/test_phase0b.py`,
+and `scripts/slurm/emerge_phase0b.slurm`. The SLURM script requests no GPU: the stage
+trains nothing and every predictor is closed form.
+
+M = infinity is excluded from the sweep, since with no pool there is no dMMSE and so no
+divergence to probe. Same reason the Phase 0 gate was unscorable there.
+
 ## 2026-09-08: Phase 0 complete, endpoint invalidated, Phase 1 paused
 
 **Runs.** Phase 0 pilot finished at 28 of 28 cells (2 model sizes, 7 pool sizes,

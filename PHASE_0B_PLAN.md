@@ -122,17 +122,24 @@ The measure is adopted only if all five hold.
    region of the plane rather than tracing a curve. A deterministic relation between R
    and S is a failure.
 
-## 6. Parameters to freeze before running
+## 6. Frozen parameters
 
-None of these are set yet. They are frozen in a single commit before the first run,
-and any later change is an amendment in EXPERIMENT_LOG.md.
+Frozen 2026-09-08 in `configs/phase0b.yaml`, before any Phase 0B code was run.
+Any later change is an amendment in EXPERIMENT_LOG.md with a date and reason.
 
-- `tau`, the minimum admitted reference divergence
-- number of probes per cell, and the query norm
-- context lengths k at which probes are evaluated
-- `E_max`, the residual bound above which S is not interpreted
-- tolerance bands for criteria 2, 3 and 4
-- the ridge band and dMMSE band edges in S
+| Parameter | Value | Reason |
+|---|---|---|
+| `tau` | `4 * sigma` = 1.0 | The references must disagree by well more than the irreducible noise, or the probe cannot separate them behaviourally. Expressed as a multiple of sigma so it travels if the noise level changes. |
+| Probes per cell | 4096 | Matches the Phase 0 evaluation budget of 8 batches of 512, so probe precision is comparable to the loss numbers already reported. |
+| Query norm | `sqrt(d)` | The expected norm of `x ~ N(0, I_d)`. Probing off that shell would test the model out of distribution and confound behaviour with extrapolation. |
+| Context lengths | 4, 8, 15, primary 8 | Short, medium and long inside the 16-token prompt. The references converge as context grows, so this spans the regime where the probe is easy and where it is hard. Primary at 8, the lower edge of the pilot's alignment window. |
+| `E_max` | 0.25 | Provisional. Pass criterion 1 tests it: if the null predictor scores below this bound then the bound is too loose and must be tightened before the measure is adopted. |
+| Tolerances | stability 0.05, mixture 0.10, noise 0.10 | Stability is the tightest because criterion 2 is the property the Phase 0 score failed outright. Mixture and noise are looser because both involve estimation over a finite probe set. |
+| S bands | ridge `S <= 0.25`, dMMSE `S >= 0.75` | Symmetric, with the ridge edge at 0.25 so the band is directly comparable to the historical cutoff it replaces. |
+
+M = infinity is excluded from the sweep. With no pool there is no dMMSE, so there is
+no reference divergence to probe, for the same reason the Phase 0 gate was unscorable
+there.
 
 ## 7. Cost and scope
 
