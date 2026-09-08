@@ -96,6 +96,8 @@ so it is not being defined here by assertion.
   `analysis/plot_pilot.py` has never run. Reproduce all of it from a committed script
   before any of it is used in a manuscript.
 
+---
+
 ## 2026-08-19: Project created
 
 - Repository scaffolded: research plan pre-registered (RESEARCH_PLAN.md),
