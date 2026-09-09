@@ -27,12 +27,19 @@ def test_references_score_at_their_own_ends():
 
 
 def test_mixtures_recover_alpha_exactly():
+    """S recovers alpha, and an on-axis predictor leaves no residual.
+
+    The residual bound is 1e-5 rather than 0: predictions are float32, so
+    forming the mixture rounds, and a predictor lying exactly on the reference
+    axis reads E at float32 epsilon, around 3e-8. That is six thousand times
+    below the E_max of 0.25 the measure actually uses.
+    """
     _, p = _probe()
     for a in (0.0, 0.25, 0.5, 0.75, 1.0):
         mix = a * p["pred_dmmse"] + (1 - a) * p["pred_ridge"]
         s = score(mix, p["pred_ridge"], p["pred_dmmse"], TAU)
-        assert abs(s["S"] - a) < 1e-9, (a, s["S"])
-        assert s["E"] < 1e-9
+        assert abs(s["S"] - a) < 1e-6, (a, s["S"])
+        assert s["E"] < 1e-5, (a, s["E"])
 
 
 def test_query_maximizes_divergence():
