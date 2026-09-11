@@ -5,6 +5,66 @@ plan. Newest entries at the top.
 
 ---
 
+## 2026-09-10: Phase 0B first run, criterion 1 failed, probe admission amended
+
+Phase 0B ran for the first time on Discovery as job 663780 (job 663778 died at once
+on a `ModuleNotFoundError`: the repo has no installed distribution and running
+`scripts/run_phase0b.py` puts `scripts/` on `sys.path` rather than the root, which
+pytest handles for itself and plain python does not). All 72 cells completed. Four
+of the five pass criteria held. **Criterion 1 failed: 16 cells read the null
+predictor as ridge-like.**
+
+**The failure was real and was not a fault in S or E.** Every one of the 16 cells sat
+at context length 4, none at 8 or 15. At k=4 the null predictor's relative loss on
+the pool family is `R = 0.978 to 1.012`, so predicting zero at the query is exactly
+as accurate as ridge. Four examples leave the ridge posterior shrunk hard toward the
+prior mean, the ridge prediction is small, and a predictor that says nothing lands on
+top of it. S and E reported that correctly. What failed was the premise of the
+criterion, which assumes the null predictor is incompetent. By k=8 null reads
+`R = 1.106 to 1.870` and by k=15 `R = 6.285 to 14.723`, and the criterion held at both.
+
+**Tightening `E_max` could not fix it, which is what the provisional bound was there
+to find out.** At k=4 the null predictor's residual bottoms out at `E = 0.0820`, while
+`wrong_lambda` reaches `0.0852` and `pool_nearest` reaches `0.2858`. Both of those must
+stay readable, so no bound separates incompetence from them. The knob named in
+PHASE_0B_PLAN.md section 6 was the wrong knob.
+
+**Amendment: a second admission condition on the probe.** A probe is now admitted only
+when the ridge reference is itself distinguishable from silence,
+
+    |y_ridge| >= rho,    rho = 4 * sigma = 1.0
+
+alongside the existing `|d| >= tau`. The multiple is the 4-sigma rule already used for
+`tau` and is adopted for the same reason: a reference that cannot be told from the
+noise cannot serve as a behavioural reference. No other value was evaluated before
+this one was chosen, so it is not tuned to the result. Frozen as `rho_sigma_multiple`
+in `configs/phase0b.yaml`. The rest of section 6 is unchanged, `E_max` included.
+
+**Re-run: all five criteria pass, and criterion 1 passes with room.** The two
+conditions now separate cleanly rather than squeaking past. Of the 33 cells where the
+null predictor's S still falls in the ridge band, the smallest residual is `E = 0.375`
+against a bound of 0.25. Of the 11 cells where its residual is under the bound, the
+smallest S is 0.345, outside the band. Criterion 2 holds at 0.0000 drift, criterion 3
+at 0.0000 worst `|S - alpha|` with no non-monotone cell, criterion 4 at 0.0049 worst
+shift under output noise, and criterion 5 spans 10.68 of S inside a single R bucket.
+
+**The cost is probes.** Admission rates fall from 99.4 to 100 percent down to 4.2 to
+83.3 percent at k=4, from 85.2 to 100 down to 47.1 to 97.5 at k=8, and from 15.8 to
+100 down to 9.6 to 98.8 at k=15. The thinnest cell now rests on 172 admitted probes,
+so its S and E carry much less precision than the 4096-probe budget implies. Phase 1
+should report admitted counts per cell and should not read a cell in the low hundreds
+as though it were the same measurement as a cell in the thousands.
+
+**Verification note carried forward.** These numbers were produced locally on torch
+2.10.0+cu128 rather than the cluster's 2.13.0, reproducing the cluster run's admitted
+counts exactly before the amendment. The amended battery has not yet been run on
+Discovery. Re-run it there and confirm the five criteria before the measure is treated
+as adopted. `results/phase0b` on the cluster still holds the pre-amendment cells and
+the runner skips cells that already have a result file, so that directory has to be
+moved aside first or the old numbers will survive the re-run.
+
+---
+
 ## 2026-09-08: Phase 0B parameters frozen, implementation added
 
 Phase 0B is implemented and its six parameters are frozen in `configs/phase0b.yaml`

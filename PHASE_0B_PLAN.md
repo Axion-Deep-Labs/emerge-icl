@@ -137,6 +137,13 @@ Any later change is an amendment in EXPERIMENT_LOG.md with a date and reason.
 | Tolerances | stability 0.05, mixture 0.10, noise 0.10 | Stability is the tightest because criterion 2 is the property the Phase 0 score failed outright. Mixture and noise are looser because both involve estimation over a finite probe set. |
 | S bands | ridge `S <= 0.25`, dMMSE `S >= 0.75` | Symmetric, with the ridge edge at 0.25 so the band is directly comparable to the historical cutoff it replaces. |
 
+**Amendment 2026-09-10.** A seventh frozen parameter was added after the first run,
+`rho = 4 * sigma = 1.0`, a minimum admitted magnitude for the ridge reference. Pass
+criterion 1 failed at context length 4 because a heavily shrunk ridge prediction is
+indistinguishable from predicting nothing, and `E_max`, the knob this section named
+as provisional, could not separate them. The reason, the evidence and the re-run are
+in EXPERIMENT_LOG.md under that date. Every value in the table above is unchanged.
+
 M = infinity is excluded from the sweep. With no pool there is no dMMSE, so there is
 no reference divergence to probe, for the same reason the Phase 0 gate was unscorable
 there.

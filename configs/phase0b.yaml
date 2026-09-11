@@ -26,6 +26,15 @@ query_norm: sqrt_dim
 context_lengths: [4, 8, 15]
 primary_context_length: 8
 
+# 1b. AMENDMENT 2026-09-10. Minimum admitted ridge reference magnitude, as a
+#    multiple of the noise scale. rho = 4 * sigma = 1.0, the same 4-sigma rule
+#    and the same reason as tau: a reference that is not itself distinguishable
+#    from the noise cannot serve as a behavioural reference. Without this, a
+#    short context shrinks ridge toward zero, the null predictor reads as
+#    ridge-like, and pass criterion 1 fails at k=4. Reason and evidence are in
+#    EXPERIMENT_LOG.md. Not tuned: no other value was evaluated first.
+rho_sigma_multiple: 4.0
+
 # 4. Residual bound. S is interpreted only when E <= e_max. Provisional: pass
 #    criterion 1 tests it. If the null predictor scores below this bound the
 #    bound is wrong and must be tightened before the measure is adopted.

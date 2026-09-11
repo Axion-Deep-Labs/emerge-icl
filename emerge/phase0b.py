@@ -8,7 +8,11 @@ and never touches the target, so it cannot be a transform of target loss.
 For a probe with context C and query x_q, write
     d = y_dmmse - y_ridge          the reference divergence
     m = y_model - y_ridge          the model's displacement from ridge
-over the admitted probes (|d| >= tau). Then
+over the admitted probes. A probe is admitted when the two references disagree,
+|d| >= tau, and when the ridge reference is itself distinguishable from silence,
+|y_ridge| >= rho. The second condition was added on 2026-09-10; without it, a
+short context shrinks ridge toward zero, predicting nothing reads as following
+ridge, and the measure cannot tell competence from silence. Then
     S = sum(m * d) / sum(d * d)    least squares projection onto the reference axis
     E = sqrt(sum((m - S*d)^2) / sum(d*d))    off-axis residual, in units of d
 S near 0 means the model follows ridge, S near 1 means it follows dMMSE, and S is
@@ -126,11 +130,17 @@ def score(
     pred_ridge: torch.Tensor,
     pred_dmmse: torch.Tensor,
     tau: float,
+    rho: float = 0.0,
 ) -> dict:
-    """Behavioural alignment S and off-axis residual E over admitted probes."""
+    """Behavioural alignment S and off-axis residual E over admitted probes.
+
+    A probe is admitted when the references disagree, |d| >= tau, and when the
+    ridge reference is non-degenerate, |y_ridge| >= rho. rho defaults to 0, which
+    is the pre-2026-09-10 behaviour and is what the algebraic unit tests use.
+    """
     d = pred_dmmse - pred_ridge
     m = pred_model - pred_ridge
-    keep = d.abs() >= tau
+    keep = (d.abs() >= tau) & (pred_ridge.abs() >= rho)
     n_kept = int(keep.sum())
     if n_kept == 0:
         return {"S": float("nan"), "E": float("nan"), "n_admitted": 0, "admit_rate": 0.0}

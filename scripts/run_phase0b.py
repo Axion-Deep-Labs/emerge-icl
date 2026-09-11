@@ -34,6 +34,7 @@ def main() -> None:
 
     sigma = cfg["sigma"]
     tau = cfg["tau_sigma_multiple"] * sigma
+    rho = cfg["rho_sigma_multiple"] * sigma
     assert cfg["query_norm"] == "sqrt_dim", "only the frozen query norm is implemented"
 
     for pool_size in cfg["pool_sizes"]:
@@ -58,7 +59,7 @@ def main() -> None:
                     rows = {}
                     for pname, p in preds.items():
                         rows[pname] = {
-                            **score(p, probe["pred_ridge"], probe["pred_dmmse"], tau),
+                            **score(p, probe["pred_ridge"], probe["pred_dmmse"], tau, rho),
                             "R": relative_loss(probe, p),
                         }
                     rec = {
@@ -67,6 +68,7 @@ def main() -> None:
                         "family": family,
                         "context_len": k,
                         "tau": tau,
+                        "rho": rho,
                         "n_probes": cfg["n_probes"],
                         "divergence_mean": float(
                             (probe["pred_dmmse"] - probe["pred_ridge"]).abs().mean()

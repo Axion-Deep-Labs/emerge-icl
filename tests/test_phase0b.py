@@ -76,3 +76,26 @@ def test_off_axis_predictor_has_large_residual():
 def test_unseen_family_builds():
     _, p = _probe(family="unseen")
     assert p["pred_ridge"].shape == p["pred_dmmse"].shape
+
+
+def test_rho_excludes_degenerate_ridge_probes():
+    """The rho admission drops probes where ridge itself is near silence."""
+    _, p = _probe(k=4)
+    wide = score(p["pred_ridge"], p["pred_ridge"], p["pred_dmmse"], TAU, 0.0)
+    tight = score(p["pred_ridge"], p["pred_ridge"], p["pred_dmmse"], TAU, 4 * SIGMA)
+    assert tight["n_admitted"] < wide["n_admitted"]
+
+
+def test_rho_stops_silence_reading_as_ridge():
+    """Predicting zero must not look ridge-like once rho is applied.
+
+    At a four-example context ridge shrinks hard toward zero, so the null
+    predictor sits on top of it. This is the k=4 failure of pass criterion 1
+    that rho exists to remove.
+    """
+    _, p = _probe(k=4, n=4096)
+    null = torch.zeros_like(p["pred_ridge"])
+    before = score(null, p["pred_ridge"], p["pred_dmmse"], TAU, 0.0)
+    after = score(null, p["pred_ridge"], p["pred_dmmse"], TAU, 4 * SIGMA)
+    assert before["E"] < 0.25, "the k=4 failure should reproduce without rho"
+    assert after["E"] > before["E"]
