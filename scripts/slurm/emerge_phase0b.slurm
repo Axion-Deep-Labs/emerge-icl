@@ -25,6 +25,12 @@ cd "$PROJECT_DIR"
 echo "node=$(hostname) cpus=${SLURM_CPUS_PER_TASK:-?}"
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-8}"
 
+# The emerge package sits at the repo root and there is no installed
+# distribution, so a script run as scripts/run_phase0b.py puts scripts/ on
+# sys.path and not the root. pytest finds the package on its own; plain python
+# does not.
+export PYTHONPATH="$PROJECT_DIR${PYTHONPATH:+:$PYTHONPATH}"
+
 # The measure tests are a gate, not the deliverable. If pytest is absent from
 # the environment, say so and run the battery anyway rather than aborting.
 if "$VENV/bin/python" -c "import pytest" 2>/dev/null; then
