@@ -1,0 +1,61 @@
+# EMERGE Phase 0B: behavioural alignment measure validation.
+# See PHASE_0B_PLAN.md. Every value below is FROZEN as of 2026-09-08.
+# Changes are amendments and go in EXPERIMENT_LOG.md with a date and reason.
+
+# Task geometry, matched to the Phase 0 pilot so probes stay on-distribution.
+dim: 8
+sigma: 0.25
+n_points: 16
+
+# --- The six frozen parameters ---
+
+# 1. Minimum admitted reference divergence, as a multiple of the noise scale.
+#    tau = 4 * sigma = 1.0. The two references must disagree by well more than
+#    the irreducible noise or the probe cannot distinguish them behaviourally.
+tau_sigma_multiple: 4.0
+
+# 2. Probes per cell, and the query norm. 4096 matches the pilot evaluation
+#    budget (8 batches of 512). The query is placed on the sqrt(d) shell, the
+#    expected norm of x ~ N(0, I_d), so the model is not probed off-distribution.
+n_probes: 4096
+query_norm: sqrt_dim
+
+# 3. Context lengths. Short, medium and long within the 16-token prompt, so the
+#    measure is tested where the references diverge easily and where they do not.
+#    Primary reporting at 8, the lower edge of the pilot's alignment window.
+context_lengths: [4, 8, 15]
+primary_context_length: 8
+
+# 1b. AMENDMENT 2026-09-10. Minimum admitted ridge reference magnitude, as a
+#    multiple of the noise scale. rho = 4 * sigma = 1.0, the same 4-sigma rule
+#    and the same reason as tau: a reference that is not itself distinguishable
+#    from the noise cannot serve as a behavioural reference. Without this, a
+#    short context shrinks ridge toward zero, the null predictor reads as
+#    ridge-like, and pass criterion 1 fails at k=4. Reason and evidence are in
+#    EXPERIMENT_LOG.md. Not tuned: no other value was evaluated first.
+rho_sigma_multiple: 4.0
+
+# 4. Residual bound. S is interpreted only when E <= e_max. Provisional: pass
+#    criterion 1 tests it. If the null predictor scores below this bound the
+#    bound is wrong and must be tightened before the measure is adopted.
+e_max: 0.25
+
+# 5. Tolerance bands for pass criteria 2, 3 and 4.
+tol_stability: 0.05   # criterion 2: S drift across M for perfect and mixture predictors
+tol_mixture: 0.10     # criterion 3: |S - alpha| for the mixture family
+tol_noise: 0.10       # criterion 4: S drift under output noise
+
+# 6. S band edges. Symmetric, with the ridge edge at 0.25 so it is directly
+#    comparable to the historical alignment cutoff it replaces.
+s_ridge_band: 0.25
+s_dmmse_band: 0.75
+
+# --- Battery sweep ---
+# M = infinity is excluded: with no pool there is no dMMSE, so there is no
+# reference divergence to probe. Same reason the Phase 0 gate was unscorable there.
+pool_sizes: [4, 16, 64, 256, 1024, 4096]
+seeds: [0, 1]
+families: [pool, unseen]
+noise_levels: [0.25, 0.5, 1.0]
+mixture_alphas: [0.0, 0.25, 0.5, 0.75, 1.0]
+wrong_lambda_multiple: 4.0   # ridge with a mis-set regularizer, (4*sigma)^2

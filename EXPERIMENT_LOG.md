@@ -5,6 +5,183 @@ plan. Newest entries at the top.
 
 ---
 
+## 2026-09-10: Phase 0B first run, criterion 1 failed, probe admission amended
+
+Phase 0B ran for the first time on Discovery as job 663780 (job 663778 died at once
+on a `ModuleNotFoundError`: the repo has no installed distribution and running
+`scripts/run_phase0b.py` puts `scripts/` on `sys.path` rather than the root, which
+pytest handles for itself and plain python does not). All 72 cells completed. Four
+of the five pass criteria held. **Criterion 1 failed: 16 cells read the null
+predictor as ridge-like.**
+
+**The failure was real and was not a fault in S or E.** Every one of the 16 cells sat
+at context length 4, none at 8 or 15. At k=4 the null predictor's relative loss on
+the pool family is `R = 0.978 to 1.012`, so predicting zero at the query is exactly
+as accurate as ridge. Four examples leave the ridge posterior shrunk hard toward the
+prior mean, the ridge prediction is small, and a predictor that says nothing lands on
+top of it. S and E reported that correctly. What failed was the premise of the
+criterion, which assumes the null predictor is incompetent. By k=8 null reads
+`R = 1.106 to 1.870` and by k=15 `R = 6.285 to 14.723`, and the criterion held at both.
+
+**Tightening `E_max` could not fix it, which is what the provisional bound was there
+to find out.** At k=4 the null predictor's residual bottoms out at `E = 0.0820`, while
+`wrong_lambda` reaches `0.0852` and `pool_nearest` reaches `0.2858`. Both of those must
+stay readable, so no bound separates incompetence from them. The knob named in
+PHASE_0B_PLAN.md section 6 was the wrong knob.
+
+**Amendment: a second admission condition on the probe.** A probe is now admitted only
+when the ridge reference is itself distinguishable from silence,
+
+    |y_ridge| >= rho,    rho = 4 * sigma = 1.0
+
+alongside the existing `|d| >= tau`. The multiple is the 4-sigma rule already used for
+`tau` and is adopted for the same reason: a reference that cannot be told from the
+noise cannot serve as a behavioural reference. No other value was evaluated before
+this one was chosen, so it is not tuned to the result. Frozen as `rho_sigma_multiple`
+in `configs/phase0b.yaml`. The rest of section 6 is unchanged, `E_max` included.
+
+**Re-run: all five criteria pass, and criterion 1 passes with room.** The two
+conditions now separate cleanly rather than squeaking past. Of the 33 cells where the
+null predictor's S still falls in the ridge band, the smallest residual is `E = 0.375`
+against a bound of 0.25. Of the 11 cells where its residual is under the bound, the
+smallest S is 0.345, outside the band. Criterion 2 holds at 0.0000 drift, criterion 3
+at 0.0000 worst `|S - alpha|` with no non-monotone cell, criterion 4 at 0.0049 worst
+shift under output noise, and criterion 5 spans 10.68 of S inside a single R bucket.
+
+**The cost is probes.** Admission rates fall from 99.4 to 100 percent down to 4.2 to
+83.3 percent at k=4, from 85.2 to 100 down to 47.1 to 97.5 at k=8, and from 15.8 to
+100 down to 9.6 to 98.8 at k=15. The thinnest cell now rests on 172 admitted probes,
+so its S and E carry much less precision than the 4096-probe budget implies. Phase 1
+should report admitted counts per cell and should not read a cell in the low hundreds
+as though it were the same measurement as a cell in the thousands.
+
+**Verification note carried forward.** These numbers were produced locally on torch
+2.10.0+cu128 rather than the cluster's 2.13.0, reproducing the cluster run's admitted
+counts exactly before the amendment. The amended battery has not yet been run on
+Discovery. Re-run it there and confirm the five criteria before the measure is treated
+as adopted. `results/phase0b` on the cluster still holds the pre-amendment cells and
+the runner skips cells that already have a result file, so that directory has to be
+moved aside first or the old numbers will survive the re-run.
+
+---
+
+## 2026-09-08: Phase 0B parameters frozen, implementation added
+
+Phase 0B is implemented and its six parameters are frozen in `configs/phase0b.yaml`
+before any Phase 0B run, per PHASE_0B_PLAN.md section 6: `tau = 4*sigma = 1.0`,
+4096 probes per cell on the `sqrt(d)` shell, context lengths 4, 8 and 15 with 8
+primary, `E_max = 0.25` provisional, tolerances 0.05 stability and 0.10 for mixture
+and noise, and S bands at 0.25 and 0.75.
+
+`E_max` is deliberately provisional. Pass criterion 1 tests it: if the null predictor
+lands inside the ridge band with a residual under the bound, the bound is too loose
+and must be tightened before the measure is adopted.
+
+**Divergence probes are available in closed form.** Both references are linear in the
+query, so the divergence at `x_q` is exactly `(w_dmmse - w_ridge) . x_q` and, at fixed
+query norm, is maximized by placing `x_q` along that difference. No search is needed.
+
+**Code.** `emerge/phase0b.py` (probes, S and E, the battery), `scripts/run_phase0b.py`,
+`scripts/check_phase0b_criteria.py` (scores the five criteria), `tests/test_phase0b.py`,
+and `scripts/slurm/emerge_phase0b.slurm`. The SLURM script requests no GPU: the stage
+trains nothing and every predictor is closed form.
+
+M = infinity is excluded from the sweep, since with no pool there is no dMMSE and so no
+divergence to probe. Same reason the Phase 0 gate was unscorable there.
+
+## 2026-09-08: Phase 0 complete, endpoint invalidated, Phase 1 paused
+
+**Runs.** Phase 0 pilot finished at 28 of 28 cells (2 model sizes, 7 pool sizes,
+2 seeds), 102 evaluations per run, 50,000 steps per run. Results are in
+`results/pilot/`.
+
+**Deviations from the plan, logged now rather than at the time.**
+
+- The plan specified model sizes of roughly 0.3M and 3M parameters. The runs used
+  152,833 and 4,750,081 parameters.
+- A100 nodes were unavailable, so the pilot ran on interactive-partition MIG slices
+  rather than the allocation named in the plan.
+- `save_final_checkpoint` was false, so no model weights were retained from any cell.
+
+**Finding: the pre-registered alignment score carries no information beyond loss.**
+
+With `R = L_model / L_ridge` and `G = (L_dmmse - L_ridge) / L_ridge`, the score
+defined in RESEARCH_PLAN.md section 5 satisfies the exact identity
+
+    A = (R - 1) / G
+
+verified in the logged data to 4.4e-16 across all 2,448 evaluations. G is computed
+from the two closed-form references on the evaluation sample and is bit-for-bit
+constant across all 102 evaluations within every cell.
+
+Two consequences.
+
+1. A fixed cutoff on A is an accuracy requirement that slides with pool size. At
+   `A <= 0.25` the permitted relative loss was 8.52 at M=4, 5.87 at M=64 and 3.15 at
+   M=4096 (seed 0). It is not a comparable criterion across the sweep.
+2. Within a cell, A and R are the same curve under an affine map, so any behaviour
+   described in one is the same behaviour described in the other.
+
+**Scoring outcomes.**
+
+- **H1 gate: invalid as pre-registered, not passed.** H1 was operationalized through
+  the same cutoff. What survives is descriptive: relative loss on unseen tasks improves
+  as the pool grows, in both sizes and both seeds.
+- **H2: unscored.** Under a competence criterion `R <= 1.25`, the small model reaches
+  no threshold at any tested diversity, its best relative loss anywhere being 2.21. The
+  medium model gives `256 < M* <= 1024`. One qualifying model size cannot test a
+  scaling hypothesis, so H2 is neither supported nor refuted.
+- The small model passed the pre-registered cutoff at M = 64, 256, 1024 and 4096 while
+  never coming closer than 2.21 times ridge loss. That is the pilot's substantive
+  result and is what a Phase 0 exists to find.
+
+**Competence readings, for the record.** Qualifying windows require `R <= 1.25` held
+over at least 2,000 optimizer steps and at least three evaluations; evaluation spacing
+in this pilot ranges from 1 step to 1,000, so persistence counted in evaluations is not
+a duration. Windows: medium M=1024 seed 0 from step 17,783, worst R 1.248813; seed 1
+from 32,000, worst R 1.249928; medium M=4096 seed 0 from 13,000, worst R 1.240247;
+seed 1 from 17,783, worst R 1.246018. All run to step 50,000. At infinite diversity
+over the final window, medium reads 1.022 and 1.046, small reads 2.967 and 2.253.
+
+The 1.25 bound is an operational tolerance chosen after seeing the pilot. It is not
+derived. Sensitivity: at 1.50 and 1.25 the medium bracket is `256 < M* <= 1024`; at
+1.10 it moves to `1024 < M* <= 4096`. The small model fails at all three and at 2.0.
+
+**Amendment: the endpoint.** The alignment endpoint in RESEARCH_PLAN.md section 5 is
+superseded. Competence is defined by R. Algorithmic alignment requires a measure that
+reads model behaviour rather than target loss, and no such measure has been validated,
+so it is not being defined here by assertion.
+
+**Phase 1 is paused** pending a bounded Phase 0B validation stage, pre-registered in
+`PHASE_0B_PLAN.md`. Phase 0B trains nothing and needs no cluster time.
+
+**Open items carried into Phase 0B and Phase 1 design.**
+
+- Pool sampling and model initialization are currently driven by one seed and are
+  confounded. At M=4 the two seeds give reference gaps of 30.08 and 40.96, a 36 percent
+  swing from the pool draw alone. Split the RNGs, pair pool draws across model sizes,
+  and define whether a seed success rate counts pool draws, initializations, or both.
+- The training budget comparison rule is undeclared. All cells received 50,000 steps.
+  Equal steps, equal examples, equal compute and training to convergence give different
+  causal readings of H2 and one must be chosen.
+- Evaluation logs only the mean over 8 batches of 512 prompts, so no uncertainty is
+  available. The medium M=1024 seed 1 window clears the tolerance by 7e-5. Log
+  per-prompt losses, estimate uncertainty by paired bootstrap at the independent task
+  level, and require the confidence bound rather than the point estimate to satisfy the
+  criterion.
+- Ever-crossed endpoints are subject to selection across roughly a hundred overlapping
+  candidate windows and should be treated as descriptive unless given simultaneous
+  intervals or a held-out confirmation.
+- Verification item: at M=4 seed 1 the small and medium models report unseen loss
+  agreeing to within nine parts per million, 10.403086 against 10.403178, where every
+  other paired cell differs by 5 to 135 percent. A four-task pool driving both models to
+  the same in-weights solution is plausible, but the evaluation path should be checked.
+- Every number in this entry was produced by ad hoc scripts against the raw JSONL.
+  `analysis/plot_pilot.py` has never run. Reproduce all of it from a committed script
+  before any of it is used in a manuscript.
+
+---
+
 ## 2026-08-19: Project created
 
 - Repository scaffolded: research plan pre-registered (RESEARCH_PLAN.md),
